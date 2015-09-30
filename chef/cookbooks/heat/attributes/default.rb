@@ -18,15 +18,14 @@ default[:heat][:api][:service_name] = "heat-api"
 default[:heat][:api_cfn][:service_name] = "heat-api-cfn"
 default[:heat][:api_cloudwatch][:service_name] = "heat-api-cloudwatch"
 
-case node["platform"]
-  when "ubuntu"
+if node[:platform] == "ubuntu"
     default[:heat][:platform] = {
       packages: ["heat-engine", "heat-api", "heat-api-cfn",
                     "heat-api-cloudwatch", "python-heat", "heat-common",
                     "python-heatclient"],
       services: ["heat-engine","heat-api","heat-api-cfn","heat-api-cloudwatch"]
     }
-   when "suse"
+elsif node[:platform_family] == "suse"
     default[:heat][:platform] = {
       packages: ["openstack-heat-engine", "openstack-heat-api",
                     "openstack-heat-api-cfn", "openstack-heat-api-cloudwatch",
