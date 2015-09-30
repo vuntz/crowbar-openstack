@@ -108,7 +108,7 @@ template "/etc/sysconfig/neutron" do
       plugin_config_file: plugin_cfg_path
     )
   end
-  only_if { node[:platform] == "suse" }
+  only_if { node[:platform_family] == "suse" }
   notifies :restart, "service[#{node[:neutron][:platform][:service_name]}]"
 end
 
@@ -190,7 +190,7 @@ when "vmware"
      group node[:neutron][:platform][:group]
      action :create
      recursive true
-     not_if { node[:platform] == "suse" }
+     not_if { node[:platform_family] == "suse" }
   end
 
   template plugin_cfg_path do
@@ -216,14 +216,14 @@ crowbar_pacemaker_sync_mark "wait-neutron_db_sync"
 execute "neutron-db-manage migrate" do
   user node[:neutron][:user]
   group node[:neutron][:group]
-  case node["platform"]
+  case node[:platform_family]
   when "suse"
     command 'source /etc/sysconfig/neutron; \
              for i in $NEUTRON_PLUGIN_CONF; do \
                CONF_ARGS="$CONF_ARGS --config-file $i"; \
              done; \
              neutron-db-manage --config-file /etc/neutron/neutron.conf $CONF_ARGS upgrade head'
-  when "ubuntu"
+  when "debian"
     command 'source /etc/default/neutron-server; \
              neutron-db-manage --config-file /etc/neutron/neutron.conf --config-file $NEUTRON_PLUGIN_CONFIG upgrade head'
   else

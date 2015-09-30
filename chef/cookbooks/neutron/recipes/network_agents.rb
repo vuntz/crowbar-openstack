@@ -40,7 +40,7 @@ ruby_block "edit /etc/sysctl.d/99-sysctl.conf for net.ipv4.ip_forward" do
     rc.search_file_replace_line(/^net.ipv4.ip_forward =/, "net.ipv4.ip_forward = 1")
     rc.write_file
   end
-  only_if { node[:platform] == "suse" && node[:platform_version].to_f >= 12.0 }
+  only_if { node[:platform] == "opensuse" || (node[:platform] == "suse" && node[:platform_version].to_f >= 12.0) }
 end
 
 # The rest of this logic will be compatible for all the platforms.
