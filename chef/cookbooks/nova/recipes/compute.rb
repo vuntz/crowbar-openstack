@@ -21,9 +21,11 @@
 include_recipe "nova::neutron"
 include_recipe "nova::config"
 
+sles12 = node[:platform] == "opensuse" || (node[:platform] == "suse" && node[:platform_version].to_f >= 12.0)
+
 def set_boot_kernel_and_trigger_reboot(flavor="default")
   # only default and xen flavor is supported by this helper right now
-  if node.platform == "suse" && node.platform_version.to_f >= 12.0
+  if sles12
     default_boot = "SLES12"
     grub_env = %x[grub2-editenv list]
     if grub_env.include?("saved_entry")
@@ -86,14 +88,14 @@ def set_boot_kernel_and_trigger_reboot(flavor="default")
   end
 end
 
-if %w(redhat centos suse).include?(node.platform)
+if %w(rhel suse).include?(node[:platform_family])
   # Start open-iscsi daemon, since nova-compute is going to use it and stumble over the
   # "starting daemon" messages otherwise
   service "open-iscsi" do
     supports status: true, start: true, stop: true, restart: true
     action [:enable, :start]
-    if node.platform == "suse"
-      if node.platform_version.to_f < 12
+    if node[:platform_family] == "suse"
+      if node[:platform] == "suse" && node[:platform_version].to_f < 12
         # Workaround broken open-iscsi init scripts that return a failed code
         # but start the service anyway. run a status command afterwards to
         # see what the real status is (bnc#885834)
@@ -127,7 +129,7 @@ case node[:nova][:libvirt_type]
     end
 
   when "kvm", "lxc", "qemu", "xen"
-    if %w(redhat centos suse).include?(node.platform)
+    if %w(rhel suse).include?(node[:platform_family])
       # make sure that the libvirt package is present before other actions try to access /etc/qemu.conf
       package "libvirt" do
         action :nothing
@@ -155,7 +157,7 @@ case node[:nova][:libvirt_type]
 
       case node[:nova][:libvirt_type]
         when "kvm", "qemu"
-          if node.platform_version.to_f >= 12.0
+          if sles12
             package "qemu"
           else
             package "kvm"
@@ -164,7 +166,7 @@ case node[:nova][:libvirt_type]
           set_boot_kernel_and_trigger_reboot
 
           if node[:nova][:libvirt_type] == "kvm"
-            if node.platform_version.to_f >= 12.0
+            if sles12
               package "qemu-kvm" if node[:kernel][:machine] == "x86_64"
               package "qemu-block-rbd"
             end
@@ -202,7 +204,7 @@ case node[:nova][:libvirt_type]
             owner "root"
             mode 0644
             variables(
-              node_platform: node[:platform],
+              node_platform_family: node[:platform_family],
               libvirt_migration: node[:nova]["use_migration"],
               shared_instances: node[:nova]["use_shared_instance_storage"],
               libvirtd_listen_tcp: node[:nova]["use_migration"] ? 1 : 0,
@@ -232,7 +234,7 @@ case node[:nova][:libvirt_type]
       end
 
       template "/etc/libvirt/qemu.conf" do
-        source "qemu.conf.sle12.erb" if node.platform == "suse" && node.platform_version.to_f >= 12.0
+        source "qemu.conf.sle12.erb" if sles12
         group "root"
         owner "root"
         mode 0644
@@ -281,7 +283,7 @@ cookbook_file "/etc/nova/nova-compute.conf" do
   group "root"
   mode 0644
   notifies :restart, "service[nova-compute]"
-end unless node.platform == "suse"
+end unless node[:platform_family] == "suse"
 
 env_filter = " AND nova_config_environment:#{node[:nova][:config][:environment]}"
 nova_controller = search(:node, "roles:nova-multi-controller#{env_filter}")
@@ -395,7 +397,7 @@ if node[:nova][:libvirt_use_multipath]
   service "boot.multipath" do
     action [:enable]
     # on SLES12 there is no boot.multipath service, because of systemd
-    not_if { node.platform == "suse" && node.platform_version.to_f >= 12.0 }
+    not_if { sles12 }
   end
 end
 
