@@ -54,7 +54,7 @@ rescue LoadError
     resources("package[#{pg_pack}]").run_action(:install)
   end
 
-  if ["debian","ubuntu"].include? node["platform"]
+  if node[:platform_family] == "debian"
     package "libpq-dev" do
       action :nothing
     end.run_action(:install)
@@ -94,7 +94,7 @@ EOS
 
     lib_builder = execute "generate pg gem Makefile" do
       # [COOK-3490] pg gem install requires full path on RHEL
-      if node["platform_family"] == "rhel"
+      if node[:platform_family] == "rhel"
         command "#{RbConfig.ruby} extconf.rb --with-pg-config=/usr/pgsql-#{node['postgresql']['version']}/bin/pg_config"
       else
         command "#{RbConfig.ruby} extconf.rb"
