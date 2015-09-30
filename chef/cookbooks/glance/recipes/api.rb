@@ -6,7 +6,7 @@
 
 include_recipe "#{@cookbook_name}::common"
 
-if node.platform == "ubuntu"
+if node[:platform] == "ubuntu"
  package "qemu-utils"
 end
 
