@@ -140,7 +140,7 @@ loop_lvm_paths = []
 node[:cinder][:volumes].each do |volume|
   if volume[:backend_driver] == "local"
     make_loopback_file(volume)
-    if node[:platform] == "opensuse" || (node[:platform] == "suse" && node[:platform_version].to_f >= 12.0)
+    if node[:platform] != "suse" || node[:platform_version].to_f >= 12.0
       setup_loopback_device(volume)
     end
     loop_lvm_paths << volume[:local][:file_name]
