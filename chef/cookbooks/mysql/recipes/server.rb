@@ -128,7 +128,7 @@ end
 
 # set the root password on platforms
 # that don't support pre-seeding
-unless platform_family?(%w{debian})
+unless platform_family?("debian")
 
   execute "assign-root-password" do
     command "/usr/bin/mysqladmin -u root password \"#{node['mysql']['server_root_password']}\""
