@@ -119,7 +119,7 @@ template "/etc/default/neutron-server" do
   variables(
       neutron_plugin_config: "/etc/neutron/plugins/ml2/ml2_conf.ini"
     )
-  only_if { node[:platform] == "ubuntu" }
+  only_if { node[:platform_family] == "debian" }
 end
 
 directory "/var/cache/neutron" do
@@ -127,7 +127,7 @@ directory "/var/cache/neutron" do
   group node[:neutron][:group]
   mode 0755
   action :create
-  only_if { node[:platform] == "ubuntu" }
+  only_if { node[:platform_family] == "debian" }
 end
 
 vlan_start = node[:network][:networks][:nova_fixed][:vlan]
@@ -143,7 +143,7 @@ vni_end = [node[:neutron][:vxlan][:vni_end], 16777215].min
 directory "/etc/neutron/plugins/ml2" do
   mode 0755
   action :create
-  only_if { node[:platform] == "ubuntu" }
+  only_if { node[:platform_family] == "debian" }
 end
 
 # NOTE(toabctl): tenant_network types should have as first element 'ml2_type_drivers_default_tenant_network' and then the rest of the selected type drivers.

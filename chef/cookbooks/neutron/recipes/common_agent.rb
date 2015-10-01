@@ -89,7 +89,7 @@ end
 
 # Cleanup the ovs-usurp init scripts that might still be existing from an old
 # install (before the network barclamp created the ovs-bridge configuration).
-if node[:platform] == "opensuse" || (node[:platform] == "suse" && node[:platform_version].to_f >= 12.0)
+unless (node[:platform] == "suse" && node[:platform_version].to_f < 12.0)
   bridges = ["br-public", "br-fixed"]
   neutron[:neutron][:additional_external_networks].each do |net|
     bridges << "br-#{net}"
