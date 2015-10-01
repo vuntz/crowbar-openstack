@@ -21,11 +21,36 @@
 include_recipe "nova::neutron"
 include_recipe "nova::config"
 
-sles12 = node[:platform] == "opensuse" || (node[:platform] == "suse" && node[:platform_version].to_f >= 12.0)
+sles11 = node[:platform] == "suse" && node[:platform_version].to_f < 12.0
 
 def set_boot_kernel_and_trigger_reboot(flavor="default")
   # only default and xen flavor is supported by this helper right now
-  if sles12
+  if sles11
+    default_boot = 0
+    current_default = nil
+
+    # parse grub config, to find boot index for selected flavor
+    File.open("/boot/grub/menu.lst") do |f|
+      f.each_line do |line|
+        current_default = line.scan(/\d/).first.to_i if line.start_with?("default")
+        if line.start_with?("title")
+          if flavor.eql?("xen")
+            # found boot index
+            break if line.include?("Xen")
+          else
+            # take first non-xen kernel as default
+            break unless line.include?("Xen")
+          end
+          default_boot += 1
+        end
+      end
+    end
+    # change default option for grub config
+    unless current_default.eql?(default_boot)
+      Chef::Log.info("changed grub default to #{default_boot}")
+      %x[sed -i -e "s;^default.*;default #{default_boot};" /boot/grub/menu.lst]
+    end
+  else
     default_boot = "SLES12"
     grub_env = %x[grub2-editenv list]
     if grub_env.include?("saved_entry")
@@ -54,31 +79,6 @@ def set_boot_kernel_and_trigger_reboot(flavor="default")
       Chef::Log.info("changed grub default to #{default_boot}")
       %x[grub2-set-default '#{default_boot}']
     end
-  else
-    default_boot = 0
-    current_default = nil
-
-    # parse grub config, to find boot index for selected flavor
-    File.open("/boot/grub/menu.lst") do |f|
-      f.each_line do |line|
-        current_default = line.scan(/\d/).first.to_i if line.start_with?("default")
-        if line.start_with?("title")
-          if flavor.eql?("xen")
-            # found boot index
-            break if line.include?("Xen")
-          else
-            # take first non-xen kernel as default
-            break unless line.include?("Xen")
-          end
-          default_boot += 1
-        end
-      end
-    end
-    # change default option for grub config
-    unless current_default.eql?(default_boot)
-      Chef::Log.info("changed grub default to #{default_boot}")
-      %x[sed -i -e "s;^default.*;default #{default_boot};" /boot/grub/menu.lst]
-    end
   end
 
   # trigger reboot through reboot_handler, if kernel-$flavor is not yet
@@ -95,7 +95,7 @@ if %w(rhel suse).include?(node[:platform_family])
     supports status: true, start: true, stop: true, restart: true
     action [:enable, :start]
     if node[:platform_family] == "suse"
-      if node[:platform] == "suse" && node[:platform_version].to_f < 12
+      if sles11
         # Workaround broken open-iscsi init scripts that return a failed code
         # but start the service anyway. run a status command afterwards to
         # see what the real status is (bnc#885834)
@@ -157,16 +157,16 @@ case node[:nova][:libvirt_type]
 
       case node[:nova][:libvirt_type]
         when "kvm", "qemu"
-          if sles12
-            package "qemu"
-          else
+          if sles11
             package "kvm"
+          else
+            package "qemu"
           end
 
           set_boot_kernel_and_trigger_reboot
 
           if node[:nova][:libvirt_type] == "kvm"
-            if sles12
+            unless sles11
               package "qemu-kvm" if node[:kernel][:machine] == "x86_64"
               package "qemu-block-rbd"
             end
@@ -234,7 +234,11 @@ case node[:nova][:libvirt_type]
       end
 
       template "/etc/libvirt/qemu.conf" do
-        source "qemu.conf.sle12.erb" if sles12
+        if sles11
+          source "qemu.conf.sle11.erb"
+        else
+          source "qemu.conf.erb"
+        end
         group "root"
         owner "root"
         mode 0644
@@ -363,7 +367,7 @@ template "/etc/default/qemu-kvm" do
     kvm: node[:nova][:kvm]
   })
   mode "0644"
-end if node.platform == "ubuntu"
+end if node[:platform_family] == "debian"
 
 template "/usr/sbin/crowbar-compute-set-sys-options" do
   source "crowbar-compute-set-sys-options.erb"
@@ -396,8 +400,8 @@ if node[:nova][:libvirt_use_multipath]
 
   service "boot.multipath" do
     action [:enable]
-    # on SLES12 there is no boot.multipath service, because of systemd
-    not_if { sles12 }
+    # on recent SUSE, there is no boot.multipath service, because of systemd
+    only_if { sles11 }
   end
 end
 
