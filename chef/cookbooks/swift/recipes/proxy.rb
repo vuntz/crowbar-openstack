@@ -428,7 +428,7 @@ elsif node[:swift][:frontend]=="uwsgi"
 
 end
 
-unless %w(rhel suse).include?(node[:platform_family])
+if node[:platform_family] == "debian"
   bash "restart swift proxy things" do
     code <<-EOH
 EOH

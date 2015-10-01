@@ -35,7 +35,7 @@ template "/etc/rsyncd.conf" do
   })
 end
 
-unless %w("suse", "rhel").include?(node[:platform_family])
+if node[:platform_family] == "debian"
   cookbook_file "/etc/default/rsync" do
     source "default-rsync"
   end
