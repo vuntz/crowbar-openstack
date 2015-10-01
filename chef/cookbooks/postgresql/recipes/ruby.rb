@@ -25,7 +25,7 @@ begin
   require "pg"
 rescue LoadError
 
-  if platform_family?("ubuntu", "debian")
+  if platform_family?("debian")
     e = execute "apt-get update" do
       action :nothing
     end
