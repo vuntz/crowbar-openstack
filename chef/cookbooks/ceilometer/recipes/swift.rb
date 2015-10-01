@@ -14,7 +14,7 @@
 #
 
 case node[:platform_family]
-when "ubuntu"
+when "debian"
   package "ceilometer-common"
   package "swift-proxy"
 else
