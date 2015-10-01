@@ -4,7 +4,7 @@ define :manila_service, use_pacemaker_provider: false do
   manila_name = "openstack-manila-#{params[:name]}"\
                 if %w(rhel suse).include? node[:platform_family]
 
-  package manila_name if %w(redhat centos suse).include? node.platform
+  package manila_name if %w(rhel suse).include? node[:platform_family]
 
   service manila_service_name do
     service_name manila_name
