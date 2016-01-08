@@ -59,7 +59,9 @@ class NovaService < PacemakerServiceObject
           "exclude_platform" => {
             "suse" => "< 12.1",
             "windows" => "/.*/"
-          }
+          },
+          "cluster" => true,
+          "cluster_remote" => true
         },
         "nova-compute-qemu" => {
           "unique" => false,
@@ -67,7 +69,9 @@ class NovaService < PacemakerServiceObject
           "exclude_platform" => {
             "suse" => "< 12.1",
             "windows" => "/.*/"
-          }
+          },
+          "cluster" => true,
+          "cluster_remote" => true
         },
         "nova-compute-vmware" => {
           "unique" => false,
@@ -90,7 +94,9 @@ class NovaService < PacemakerServiceObject
           "count" => -1,
           "platform" => {
             "suse" => "12.1",
-          }
+          },
+          "cluster" => true,
+          "cluster_remote" => true
         }
       }
     end
@@ -225,6 +231,123 @@ class NovaService < PacemakerServiceObject
     end unless all_nodes.nil?
 
     @logger.debug("Nova apply_role_pre_chef_call: leaving")
+  end
+
+  def apply_role_post_chef_call(old_role, role, all_nodes)
+    @logger.debug("Nova apply_role_post_chef_call: entering #{all_nodes.inspect}")
+
+    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # FIXME: we only do it this way because crowbar orchestration is not
+    #        good enough at the moment; with proper orchestration, we would
+    #        simply trigger a chef-client run on the founder nodes in the core
+    #        of crowbar
+    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    #
+    # Look for clusters with remote nodes that are used for compute roles.
+    # For each of them:
+    #  - assign some nova-compute-ha role to the founder node (by
+    #    manipulating run list)
+    #  - run chef-client
+    # Also look at "remove" roles to remove the nova-compute-ha role
+    # from the run list
+
+    compute_ha_role = "nova-compute-ha"
+    compute_ha_role_remove = "#{compute_ha_role}_remove"
+    role_priority = role.override_attributes["nova"]["element_run_list_order"][compute_ha_role]
+    role_state = role.override_attributes["nova"]["element_states"][compute_ha_role]
+
+    founders = []
+    founders_remove = []
+
+    # find list of roles which accept clusters with remote nodes
+    roles_with_remote = role_constraints.select do |role, constraints|
+      constraints["cluster_remote"]
+    end.keys
+
+    ### FIXME: nearly sure this part won't work as intended, as only expanded
+    ### nodes get the _remove role
+    # also consider remove roles
+    remove_roles_with_remote = roles_with_remote.map { |r| "#{r}_remove" }
+
+    # now examine all elements in these roles, and look for clusters so we can
+    # have a list of founders
+    elements = role.override_attributes["nova"]["elements"]
+    (roles_with_remote + remove_roles_with_remote).each do |role|
+      next unless elements.key? role
+      elements[role].each do |element|
+        next unless is_cluster? element
+
+        founder = PacemakerServiceObject.cluster_founder(element)
+
+        if role =~ /_remove$/
+          founders_remove.push(founder)
+        else
+          founders.push(founder)
+        end
+      end
+    end
+
+    founders.compact!.uniq!
+    # if a cluster moved to another role (ie removed from one role, and present
+    # in another), then we don't need to remove it
+    founders_remove -= founder
+    founders_remove.compact!.uniq!
+
+    all_founders = founders + founders_remove
+
+    return if all_founders.empty?
+
+    # Add roles to the run list of the founders
+    founders.each do |founder|
+      next if founder.role? compute_ha_role
+
+      founder.add_to_run_list(compute_ha_role, role_priority, role_state)
+      founder.save
+    end
+
+    founders_remove.each do |founder|
+      save_it = false
+      if founder.role? compute_ha_role
+        founder.delete_from_run_list compute_ha_role
+        save_it = true
+      end
+      unless founder.role? compute_ha_role_remove
+        founder.add_to_run_list(compute_ha_role_remove, role_priority, role_state)
+        save_it = true
+      end
+      founder.save if save_it
+    end
+
+    # Note: there's no need to add nova-config-default role to the founder
+    # nodes: they use absolutely nothing from the proposal directly, and
+    # instead rely on attributes on the remote nodes.
+
+    # run chef-client on all founders in parallel, and wait for all of them
+    pids = {}
+    all_founders.each do |founder|
+      filename = "#{ENV['CROWBAR_LOG_DIR']}/chef-client/#{founder}.log"
+      pid = run_remote_chef_client(founder, "chef-client", filename)
+      pids[pid] = founder
+    end
+
+    status = Process.waitall
+    badones = status.select { |x| x[1].exitstatus != 0 }
+    unless badones.empty?
+      message = "Failed to handle remote node delegation on:"
+      badones.each do |baddie|
+        message = message + " #{pids[baddie[0]]}"
+      end
+      raise message
+    end
+
+    # If chef-client succeeds, then removed founders shouldn't keep the remove
+    # role, so delete it from run list
+    founders_remove.each do |founder|
+      founder.delete_from_run_list compute_ha_role_remove
+      founder.save
+    end
+
+    @logger.debug("Nova apply_role_post_chef_call: leaving")
   end
 
   def validate_proposal_after_save proposal
