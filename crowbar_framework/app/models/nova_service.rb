@@ -251,41 +251,32 @@ class NovaService < PacemakerServiceObject
     role_state = role.override_attributes["nova"]["element_states"][compute_ha_role]
 
     founders = []
-    founders_remove = []
 
     # find list of roles which accept clusters with remote nodes
     roles_with_remote = role_constraints.select do |role, constraints|
       constraints["remotes"]
     end.keys
 
-    ### FIXME: nearly sure this part won't work as intended, as only expanded
-    ### nodes get the _remove role
-    # also consider remove roles
-    remove_roles_with_remote = roles_with_remote.map { |r| "#{r}_remove" }
-
     # now examine all elements in these roles, and look for clusters so we can
     # have a list of founders
     elements = role.override_attributes["nova"]["elements"]
-    (roles_with_remote + remove_roles_with_remote).each do |role|
+    roles_with_remote.each do |role|
       next unless elements.key? role
       elements[role].each do |element|
         next unless is_remotes? element
 
         founder = PacemakerServiceObject.cluster_founder(element)
-
-        if role =~ /_remove$/
-          founders_remove.push(founder)
-        else
-          founders.push(founder)
-        end
+        founders.push(founder)
       end
     end
 
     founders.compact!.uniq!
-    # if a cluster moved to another role (ie removed from one role, and present
-    # in another), then we don't need to remove it
-    founders_remove -= founder
-    founders_remove.compact!.uniq!
+    # We cannot detect which cluster with remote nodes got removed (since the
+    # _remove roles only track expanded nodes, not clusters); instead, we
+    # simply look at the nodes that have the compute-ha role and that shouldn't
+    # have it anymore.
+    old_founders = NodeObject.find("role:#{compute_ha_role}")
+    founders_remove = old_founders - founders
 
     all_founders = founders + founders_remove
 
