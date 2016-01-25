@@ -266,11 +266,11 @@ class NovaService < PacemakerServiceObject
         next unless is_remotes? element
 
         founder = PacemakerServiceObject.cluster_founder(element)
-        founders.push(founder)
+        founders.push(founder) unless founder.nil?
       end
     end
 
-    founders.compact!.uniq!
+    founders.uniq! { |f| f.name }
     # We cannot detect which cluster with remote nodes got removed (since the
     # _remove roles only track expanded nodes, not clusters); instead, we
     # simply look at the nodes that have the compute-ha role and that shouldn't
@@ -280,7 +280,10 @@ class NovaService < PacemakerServiceObject
 
     all_founders = founders + founders_remove
 
-    return if all_founders.empty?
+    if all_founders.empty?
+      @logger.debug("Nova apply_role_post_chef_call: leaving (no HA orchestration)")
+      return
+    end
 
     # Add roles to the run list of the founders
     founders.each do |founder|
@@ -307,9 +310,13 @@ class NovaService < PacemakerServiceObject
     # nodes: they use absolutely nothing from the proposal directly, and
     # instead rely on attributes on the remote nodes.
 
+    all_founders_names = all_founders.map { |f| f.name }
+
     # run chef-client on all founders in parallel, and wait for all of them
+    @logger.debug("AR: Calling chef-client for #{role.name} on founder nodes #{all_founders_names.join(" ")}")
+
     pids = {}
-    all_founders.each do |founder|
+    all_founders_names.each do |founder|
       filename = "#{ENV['CROWBAR_LOG_DIR']}/chef-client/#{founder}.log"
       pid = run_remote_chef_client(founder, "chef-client", filename)
       pids[pid] = founder
