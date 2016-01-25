@@ -59,9 +59,7 @@ class NovaService < PacemakerServiceObject
           "exclude_platform" => {
             "suse" => "< 12.1",
             "windows" => "/.*/"
-          },
-          "cluster" => true,
-          "cluster_remote" => true
+          }
         },
         "nova-compute-qemu" => {
           "unique" => false,
@@ -69,9 +67,7 @@ class NovaService < PacemakerServiceObject
           "exclude_platform" => {
             "suse" => "< 12.1",
             "windows" => "/.*/"
-          },
-          "cluster" => true,
-          "cluster_remote" => true
+          }
         },
         "nova-compute-vmware" => {
           "unique" => false,
@@ -94,9 +90,7 @@ class NovaService < PacemakerServiceObject
           "count" => -1,
           "platform" => {
             "suse" => "12.1",
-          },
-          "cluster" => true,
-          "cluster_remote" => true
+          }
         }
       }
     end
@@ -261,7 +255,7 @@ class NovaService < PacemakerServiceObject
 
     # find list of roles which accept clusters with remote nodes
     roles_with_remote = role_constraints.select do |role, constraints|
-      constraints["cluster_remote"]
+      constraints["remotes"]
     end.keys
 
     ### FIXME: nearly sure this part won't work as intended, as only expanded
@@ -275,7 +269,7 @@ class NovaService < PacemakerServiceObject
     (roles_with_remote + remove_roles_with_remote).each do |role|
       next unless elements.key? role
       elements[role].each do |element|
-        next unless is_cluster? element
+        next unless is_remotes? element
 
         founder = PacemakerServiceObject.cluster_founder(element)
 
