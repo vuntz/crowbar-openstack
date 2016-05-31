@@ -190,7 +190,7 @@ when "ml2"
     ml2_mechanism_drivers.push("zvm")
   end
   if ml2_type_drivers.include?("gre") || ml2_type_drivers.include?("vxlan")
-    ml2_mechanism_drivers.push("l2population") if node[:neutron][:use_dvr]
+    ml2_mechanism_drivers.push("l2population")
     mtu_value = 1400
   end
 
