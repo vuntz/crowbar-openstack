@@ -23,7 +23,7 @@
       "crowbar-revision": 1,
       "crowbar-applied": false,
       "element_states": {
-        "trove-server": [ "readying", "ready", "applying" ]
+        "trove-server": [ "ready", "applying" ]
       },
       "elements": {},
       "element_order": [

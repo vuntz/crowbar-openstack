@@ -133,8 +133,8 @@
       "crowbar-applied": false,
       "schema-revision": 47,
       "element_states": {
-          "cinder-controller": [ "readying", "ready", "applying" ],
-          "cinder-volume": [ "readying", "ready", "applying" ]
+          "cinder-controller": [ "ready", "applying" ],
+          "cinder-volume": [ "ready", "applying" ]
       },
       "elements": {},
       "element_order": [

@@ -52,7 +52,7 @@
       "crowbar-applied": false,
       "schema-revision": 38,
       "element_states": {
-        "horizon-server": [ "readying", "ready", "applying" ]
+        "horizon-server": [ "ready", "applying" ]
       },
       "elements": {},
       "element_order": [

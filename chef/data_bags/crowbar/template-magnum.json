@@ -36,7 +36,7 @@
       "crowbar-revision": 1,
       "crowbar-applied": false,
       "element_states": {
-        "magnum-server": [ "readying", "ready", "applying" ]
+        "magnum-server": [ "ready", "applying" ]
       },
       "elements": {},
       "element_order": [

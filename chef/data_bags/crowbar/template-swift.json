@@ -102,10 +102,10 @@
       "crowbar-applied": false,
       "schema-revision": 22,
       "element_states": {
-        "swift-dispersion": [ "readying", "ready", "applying" ],
-        "swift-storage": [ "readying", "ready", "applying" ],
-        "swift-proxy": [ "readying", "ready", "applying" ],
-        "swift-ring-compute": [ "readying", "ready", "applying" ]
+        "swift-dispersion": [ "ready", "applying" ],
+        "swift-storage": [ "ready", "applying" ],
+        "swift-proxy": [ "ready", "applying" ],
+        "swift-ring-compute": [ "ready", "applying" ]
       },
       "elements": {},
       "element_order": [

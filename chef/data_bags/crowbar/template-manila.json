@@ -81,8 +81,8 @@
       "crowbar-applied": false,
       "schema-revision": 14,
       "element_states": {
-        "manila-server": [ "readying", "ready", "applying" ],
-        "manila-share": [ "readying", "ready", "applying" ]
+        "manila-server": [ "ready", "applying" ],
+        "manila-share": [ "ready", "applying" ]
       },
       "elements": {},
       "element_order": [

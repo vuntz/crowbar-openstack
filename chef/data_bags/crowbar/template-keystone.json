@@ -141,7 +141,7 @@
       "crowbar-applied": false,
       "schema-revision": 35,
       "element_states": {
-        "keystone-server": [ "readying", "ready", "applying" ]
+        "keystone-server": [ "ready", "applying" ]
       },
       "elements": {},
       "element_order": [

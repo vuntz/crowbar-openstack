@@ -35,7 +35,7 @@
       "crowbar-applied": false,
       "schema-revision": 4,
       "element_states": {
-        "database-server": [ "readying", "ready", "applying" ]
+        "database-server": [ "ready", "applying" ]
       },
       "elements": {
         "database-server": []

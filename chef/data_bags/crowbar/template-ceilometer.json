@@ -38,11 +38,11 @@
       "crowbar-applied": false,
       "schema-revision": 101,
       "element_states": {
-        "ceilometer-server": [ "readying", "ready", "applying" ],
-        "ceilometer-central": [ "readying", "ready", "applying" ],
-        "ceilometer-agent": [ "readying", "ready", "applying" ],
-        "ceilometer-agent-hyperv": [ "readying", "ready", "applying" ],
-        "ceilometer-swift-proxy-middleware": [ "readying", "ready", "applying" ]
+        "ceilometer-server": [ "ready", "applying" ],
+        "ceilometer-central": [ "ready", "applying" ],
+        "ceilometer-agent": [ "ready", "applying" ],
+        "ceilometer-agent-hyperv": [ "ready", "applying" ],
+        "ceilometer-swift-proxy-middleware": [ "ready", "applying" ]
       },
       "elements": {},
       "element_order": [

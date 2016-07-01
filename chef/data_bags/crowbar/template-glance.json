@@ -74,7 +74,7 @@
       "crowbar-applied": false,
       "schema-revision": 27,
       "element_states": {
-        "glance-server": [ "readying", "ready", "applying" ]
+        "glance-server": [ "ready", "applying" ]
       },
       "elements": {},
       "element_order": [

@@ -35,7 +35,7 @@
       "crowbar-applied": false,
       "schema-revision": 11,
       "element_states": {
-        "rabbitmq-server": [ "readying", "ready", "applying" ]
+        "rabbitmq-server": [ "ready", "applying" ]
       },
       "elements": {},
       "element_order": [
