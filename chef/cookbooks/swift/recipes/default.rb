@@ -61,6 +61,18 @@ unless proxy_nodes.empty?
 end
 
 if node.roles.include?("logging-client") || node.roles.include?("logging-server")
+  rsyslog_resource = begin
+    resources(service: "rsyslog")
+  rescue Chef::Exceptions::ResourceNotFound
+    nil
+  end
+
+  service "rsyslog" do
+    provider Chef::Provider::Service::Upstart if node[:platform] == "ubuntu"
+    service_name "syslog" if node[:platform] == "suse" && node[:platform_version].to_f < 12.0
+    action :nothing
+  end if rsyslog_resource.nil?
+
   rsyslog_version = `rsyslogd -v | head -1 | sed -e "s/^rsyslogd \\(.*\\), .*$/\\1/"`
   # log swift components into separate log files
   template "/etc/rsyslog.d/11-swift.conf" do

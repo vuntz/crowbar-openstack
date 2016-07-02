@@ -107,12 +107,6 @@ template "/etc/ceilometer/ceilometer.conf" do
       event_time_to_live: event_time_to_live,
       alarm_threshold_evaluation_interval: node[:ceilometer][:alarm_threshold_evaluation_interval]
     )
-    if is_compute_agent
-      notifies :restart, "service[nova-compute]"
-    end
-    if is_swift_proxy
-      notifies :restart, "service[swift-proxy]"
-    end
 end
 
 template "/etc/ceilometer/pipeline.yaml" do
@@ -126,10 +120,60 @@ template "/etc/ceilometer/pipeline.yaml" do
       disk_interval: node[:ceilometer][:disk_interval],
       network_interval: node[:ceilometer][:network_interval]
   })
-  if is_compute_agent
-    notifies :restart, "service[nova-compute]"
+end
+
+if is_compute_agent
+  nova_compute_resource = begin
+    resources(service: "nova-compute")
+  rescue Chef::Exceptions::ResourceNotFound
+    nil
   end
-  if is_swift_proxy
-    notifies :restart, "service[swift-proxy]"
+
+  service "nova-compute" do
+    service_name "openstack-nova-compute" if %w(rhel suse).include?(node[:platform_family])
+    if (platform?("ubuntu") && node.platform_version.to_f >= 10.04)
+      restart_command "stop #{nova_name} ; start #{nova_name}"
+      stop_command "stop #{nova_name}"
+      start_command "start #{nova_name}"
+      status_command "status #{nova_name} | cut -d' ' -f2 | cut -d'/' -f1 | grep start"
+    end
+
+    if node[:nova][:ha][:compute][:enabled]
+      supports restart_crm_resource: true, \
+               no_crm_maintenance_mode: true, \
+               pacemaker_resource_name: "nova-compute"
+    else
+      supports status: true, restart: true
+    end
+
+    action :nothing
+
+    subscribes :restart, "template[/etc/ceilometer/ceilometer.conf]"
+    subscribes :restart, "template[/etc/ceilometer/pipeline.yaml]"
+
+    provider Chef::Provider::CrowbarPacemakerService if node[:nova][:ha][:compute][:enabled]
+  end if nova_compute_resource.nil?
+end
+
+if is_swift_proxy
+  swift_proxy_resource = begin
+    resources(service: "swift-proxy")
+  rescue Chef::Exceptions::ResourceNotFound
+    nil
   end
+
+  service "swift-proxy" do
+    service_name node[:swift][:proxy][:service_name]
+    if %w(rhel suse).include?(node[:platform_family])
+      supports status: true, restart: true
+    else
+      restart_command "stop swift-proxy ; start swift-proxy"
+    end
+    action :nothing
+    subscribes :restart, "template[/etc/ceilometer/ceilometer.conf]"
+    subscribes :restart, "template[/etc/ceilometer/pipeline.yaml]"
+    provider Chef::Provider::CrowbarPacemakerService if node[:swift][:ha][:enabled]
+    # Do not even try to start the daemon if we don't have the ring yet
+    only_if { ::File.exist? "/etc/swift/object.ring.gz" }
+  end if swift_proxy_resource.nil?
 end
