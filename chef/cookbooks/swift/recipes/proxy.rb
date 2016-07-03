@@ -415,3 +415,4 @@ if node["swift"]["use_slog"] and node["swift"]["proxy_init_done"]
 end
 
 node.set["swift"]["proxy_init_done"] = true
+node.save
