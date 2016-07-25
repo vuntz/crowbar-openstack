@@ -99,6 +99,8 @@ include_recipe "neutron::common_config"
 
 if node[:neutron][:networking_plugin] == "vmware"
   plugin_cfg_path = "/etc/neutron/plugins/vmware/nsx.ini"
+elsif node[:neutron][:networking_plugin] == "midonet"
+  plugin_cfg_path = "/etc/neutron/plugins/midonet/midonet.ini"
 else
   plugin_cfg_path = "/etc/neutron/plugins/ml2/ml2_conf.ini"
 end
@@ -220,16 +222,14 @@ when "ml2"
   end
 when "vmware"
   directory "/etc/neutron/plugins/vmware/" do
-     mode 00755
+     mode 0755
      owner "root"
      group node[:neutron][:platform][:group]
      action :create
-     recursive true
      not_if { node[:platform_family] == "suse" }
   end
 
   template plugin_cfg_path do
-    cookbook "neutron"
     source "nsx.ini.erb"
     owner "root"
     group node[:neutron][:platform][:group]
@@ -238,10 +238,32 @@ when "vmware"
       vmware_config: node[:neutron][:vmware]
     )
   end
+when "midonet"
+  directory "/etc/neutron/plugins/midonet/" do
+     mode 0755
+     owner "root"
+     group node[:neutron][:platform][:group]
+     action :create
+  end
+
+  keystone_settings = KeystoneHelper.keystone_settings(node, @cookbook_name)
+
+  template plugin_cfg_path do
+    source "midonet.ini.erb"
+    owner "root"
+    group node[:neutron][:platform][:group]
+    mode "0640"
+    variables(
+      midonet_config: node[:neutron][:midonet],
+      keystone_settings: keystone_settings
+    )
+  end
 end
 
 if node[:neutron][:networking_plugin] == "ml2" and node[:neutron][:ml2_mechanism_drivers].include?("cisco_nexus")
   include_recipe "neutron::cisco_support"
+elsif node[:neutron][:networking_plugin] == "midonet"
+  include_recipe "neutron::midonet_support"
 end
 
 if node[:neutron][:use_lbaas]
@@ -254,7 +276,8 @@ if node[:neutron][:use_lbaas]
     mode "0640"
     variables(
       interface_driver: interface_driver,
-      keystone_settings: keystone_settings
+      keystone_settings: keystone_settings,
+      networking_plugin: node[:neutron][:networking_plugin]
     )
   end
 
@@ -352,6 +375,25 @@ if node[:neutron][:use_lbaas]
     end
     action :nothing
     subscribes :create, "execute[neutron-db-manage migrate lbaas]", :immediately
+  end
+end
+
+if node[:neutron][:networking_plugin] == "midonet"
+  # See comments for "neutron-db-manage migrate" above
+  execute "neutron-db-manage migrate midonet" do
+    user node[:neutron][:user]
+    group node[:neutron][:group]
+    command "neutron-db-manage --subproject networking-midonet upgrade head"
+    only_if { !node[:neutron][:db_synced_midonet] && (!ha_enabled || CrowbarPacemakerHelper.is_cluster_founder?(node)) }
+  end
+
+  ruby_block "mark node for neutron db_sync midonet" do
+    block do
+      node.set[:neutron][:db_synced_midonet] = true
+      node.save
+    end
+    action :nothing
+    subscribes :create, "execute[neutron-db-manage migrate midonet]", :immediately
   end
 end
 

@@ -51,6 +51,12 @@ bash "reload disable-rp_filter-sysctl" do
   subscribes :run, resources(cookbook_file: disable_rp_filter_file), :delayed
 end
 
+if neutron[:neutron][:networking_plugin] == "midonet"
+  # nothing to do in the case of midonet
+  include_recipe "neutron::midonet_agents"
+  return
+end
+
 multiple_external_networks = !neutron[:neutron][:additional_external_networks].empty?
 
 # openvswitch configuration specific to ML2

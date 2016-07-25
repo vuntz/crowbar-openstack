@@ -81,6 +81,7 @@ when "suse"
     nsx_pkgs: ["openvswitch-pki",
                    "ruby2.1-rubygem-faraday"],
     cisco_pkgs: ["python-networking-cisco"],
+    midonet_pkgs: ["python-networking-midonet"],
     user: "neutron",
     group: "neutron",
     neutron_rootwrap_sudo_template: "/etc/sudoers.d/openstack-neutron"
@@ -112,6 +113,7 @@ when "rhel"
     hyperv_pkg: "",
     nsx_pkgs: [""],
     cisco_pkgs: ["python-networking-cisco"],
+    midonet_pkgs: ["python-networking-midonet"],
     user: "neutron",
     group: "neutron",
     neutron_rootwrap_sudo_template: "/etc/sudoers.d/openstack-neutron"
@@ -144,11 +146,19 @@ else
     hyperv_pkg: "python-networking-hyperv",
     nsx_pkgs: [""],
     cisco_pkgs: [""],
+    midonet_pkgs: ["python-networking-midonet"],
     user: "neutron",
     group: "neutron",
     neutron_rootwrap_sudo_template: "/etc/sudoers.d/neutron-rootwrap"
   }
 end
+
+default[:neutron][:midonet][:host] = ""
+default[:neutron][:midonet][:port] = "8080"
+default[:neutron][:midonet][:username] = ""
+default[:neutron][:midonet][:password] = ""
+default[:neutron][:midonet][:openstack_user] = "midonet"
+default[:neutron][:midonet][:openstack_password] = ""
 
 default[:neutron][:ha][:network][:enabled] = false
 default[:neutron][:ha][:network][:l3_ra] = "lsb:#{node[:neutron][:platform][:l3_agent_name]}"

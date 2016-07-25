@@ -105,11 +105,29 @@ unless nova[:nova].nil? or nova[:nova][:ssl].nil?
   }
 end
 
-service_plugins = "neutron.services.metering.metering_plugin.MeteringPlugin"
-service_plugins = "#{service_plugins}, neutron_fwaas.services.firewall.fwaas_plugin.FirewallPlugin"
-if neutron[:neutron][:use_lbaas] then
-  service_plugins = "#{service_plugins}, neutron_lbaas.services.loadbalancer.plugin.LoadBalancerPlugin"
+if neutron[:neutron][:networking_plugin] != "midonet"
+  core_plugin = neutron[:neutron][:networking_plugin]
+
+  service_plugins = ["neutron.services.metering.metering_plugin.MeteringPlugin",
+                     "neutron_fwaas.services.firewall.fwaas_plugin.FirewallPlugin"]
+  if neutron[:neutron][:use_lbaas]
+    service_plugins.push("neutron_lbaas.services.loadbalancer.plugin.LoadBalancerPlugin")
+  end
+
+  if neutron[:neutron][:networking_plugin] == "ml2"
+    service_plugins.unshift("neutron.services.l3_router.l3_router_plugin.L3RouterPlugin")
+  end
+else
+  core_plugin = "midonet.neutron.plugin_v2.MidonetPluginV2"
+
+  service_plugins = ["midonet.neutron.services.l3.l3_midonet.MidonetL3ServicePlugin",
+                     "midonet.neutron.services.firewall.plugin.MidonetFirewallPlugin"]
+  if neutron[:neutron][:use_lbaas]
+    service_plugins.push("lbaas")
+  end
 end
+
+service_plugins = service_plugins.join(", ")
 
 network_nodes_count = neutron[:neutron][:elements]["neutron-network"].count
 if neutron[:neutron][:elements_expanded]
@@ -141,7 +159,7 @@ template "/etc/neutron/neutron.conf" do
       ssl_key_file: neutron[:neutron][:ssl][:keyfile],
       ssl_cert_required: neutron[:neutron][:ssl][:cert_required],
       ssl_ca_file: neutron[:neutron][:ssl][:ca_certs],
-      core_plugin: neutron[:neutron][:networking_plugin],
+      core_plugin: core_plugin,
       service_plugins: service_plugins,
       use_namespaces: true,
       allow_overlapping_ips: neutron[:neutron][:allow_overlapping_ips],
