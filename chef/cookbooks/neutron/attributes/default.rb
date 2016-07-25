@@ -103,6 +103,7 @@ when "suse"
     cisco_opflex_pkgs: ["agent-ovs",
                         "lldpd",
                         "openstack-neutron-opflex-agent"],
+    midonet_pkgs: ["python-networking-midonet"],
     user: "neutron",
     group: "neutron",
     neutron_rootwrap_sudo_template: "/etc/sudoers.d/openstack-neutron"
@@ -141,6 +142,7 @@ when "rhel"
     cisco_opflex_pkgs: ["agent-ovs",
                         "lldpd",
                         "neutron-opflex-agent"],
+    midonet_pkgs: ["python-networking-midonet"],
     user: "neutron",
     group: "neutron",
     neutron_rootwrap_sudo_template: "/etc/sudoers.d/openstack-neutron"
@@ -176,11 +178,19 @@ else
     cisco_apic_pkgs: [""],
     cisco_apic_gbp_pkgs: [""],
     cisco_opflex_pkgs: [""],
+    midonet_pkgs: ["python-networking-midonet"],
     user: "neutron",
     group: "neutron",
     neutron_rootwrap_sudo_template: "/etc/sudoers.d/neutron-rootwrap"
   }
 end
+
+default[:neutron][:midonet][:host] = ""
+default[:neutron][:midonet][:port] = "8080"
+default[:neutron][:midonet][:username] = ""
+default[:neutron][:midonet][:password] = ""
+default[:neutron][:midonet][:openstack_user] = "midonet"
+default[:neutron][:midonet][:openstack_password] = ""
 
 default[:neutron][:ha][:network][:enabled] = false
 default[:neutron][:ha][:network][:l3_ra] = "lsb:#{node[:neutron][:platform][:l3_agent_name]}"
