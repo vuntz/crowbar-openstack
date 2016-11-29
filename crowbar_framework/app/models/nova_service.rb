@@ -240,6 +240,76 @@ class NovaService < PacemakerServiceObject
     end
   end
 
+  def find_compute_role_for_node(node, role)
+    role.override_attributes["nova"]["elements"].each do |role_name, elements|
+      next unless role_name =~ /^nova-compute-/
+      return role_name if elements.include?(node)
+    end unless role.nil?
+
+    nil
+  end
+
+  def is_node_controller(node, role)
+    return false if role.nil?
+
+    controller_elements, controller_nodes, ha_enabled = role_expand_elements(role, "nova-controller")
+    return controller_nodes.include?(node)
+  end
+
+  def skip_batch_for_node(batch, node, old_role, new_role)
+    return false unless File.exists?("/var/lib/crowbar/optimize_batches")
+
+    old_elements = old_role.override_attributes["nova"]["elements"]
+    new_elements = new_role.override_attributes["nova"]["elements"]
+
+    # if the attributes changed, then we must apply
+    if old_role.default_attributes["nova"] != new_role.default_attributes["nova"]
+      @logger.debug("Nova Batch: not skipping #{node} due to attribute change")
+      return false
+    end
+
+    # if we use remote HA, let's be safe, and don't skip anything
+    new_elements.each do |role_name, elements|
+      next unless role_name =~ /^nova-compute-/
+      elements.each do |element|
+        if is_remotes?(element)
+          @logger.debug("Nova Batch: not skipping #{node} due to compute HA")
+          return false
+        end
+      end
+    end
+
+    old_node_compute_role = find_compute_role_for_node(node, old_role)
+    new_node_compute_role = find_compute_role_for_node(node, new_role)
+
+    node_was_controller = is_node_controller(node, old_role)
+    node_is_controller = is_node_controller(node, new_role)
+
+    # if the node changed roles, then we need to apply
+    if old_node_compute_role != new_node_compute_role || node_was_controller != node_is_controller
+      @logger.debug("Nova Batch: not skipping #{node} due to role change")
+      return false
+    end
+
+    # if the node is only a compute node, or not relevant to nova at all
+    # (shouldn't happen), then we don't do anything since the nova proposal
+    # didn't change and we have the same role
+    unless node_is_controller
+      @logger.debug("Nova Batch: skipping #{node} (compute only)")
+      return true
+    end
+
+    # if the node is a controller, then we only need to apply if we move from
+    # non-HA to HA (or vice-versa), since the config didn't change
+    if old_elements["nova-controller"] == new_elements["nova-controller"]
+      @logger.debug("Nova Batch: skipping #{node} (no controller change)")
+      return true
+    end
+
+    @logger.debug("Nova Batch: not skipping #{node} (default behavior)")
+    return false
+  end
+
   def apply_role_pre_chef_call(old_role, role, all_nodes)
     @logger.debug("Nova apply_role_pre_chef_call: entering #{all_nodes.inspect}")
     return if all_nodes.empty?
@@ -249,7 +319,12 @@ class NovaService < PacemakerServiceObject
     end
 
     controller_elements, controller_nodes, ha_enabled = role_expand_elements(role, "nova-controller")
-    reset_sync_marks_on_clusters_founders(controller_elements)
+    # don't reset sync marks if we will skip running chef on controllers
+    if File.exists?("/var/lib/crowbar/optimize_batches") &&
+      (old_role.default_attributes["nova"] != role.default_attributes["nova"] ||
+       old_role.override_attributes["nova"]["elements"]["nova-controller"] != role.override_attributes["nova"]["elements"]["nova-controller"])
+      reset_sync_marks_on_clusters_founders(controller_elements)
+    end
     Openstack::HA.set_controller_role(controller_nodes) if ha_enabled
 
     vip_networks = ["admin", "public"]
