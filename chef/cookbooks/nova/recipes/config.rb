@@ -45,12 +45,10 @@ database_connection = if node["roles"].include?("nova-controller")
   "#{db_conn_scheme}://#{node[:nova][:db][:user]}:#{node[:nova][:db][:password]}@#{db_settings[:address]}/#{node[:nova][:db][:database]}"
 end
 
-apis = search_env_filtered(:node, "roles:nova-controller")
-if apis.length > 0
-  api = apis[0]
-  api = node if api.name == node.name
+api = if node["roles"].include?("nova-controller")
+  node
 else
-  api = node
+  search_env_filtered(:node, "roles:nova-controller").first
 end
 
 api_ha_enabled = api[:nova][:ha][:enabled]
