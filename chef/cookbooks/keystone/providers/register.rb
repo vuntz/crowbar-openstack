@@ -235,13 +235,16 @@ action :add_endpoint_template do
       data = JSON.parse(resp.read_body)
       data["endpoints"].each do |endpoint|
           if endpoint["service_id"].to_s == my_service_id.to_s
-              if endpoint_needs_update endpoint, new_resource
-                  replace_old = true
-                  old_endpoint_id = endpoint["id"]
-                  break
-              else
+              same_url = endpoint["publicurl"] == new_resource.endpoint_publicURL and
+                  endpoint["adminurl"] == new_resource.endpoint_adminURL and
+                  endpoint["internalurl"] == new_resource.endpoint_internalURL
+              same_region = endpoint["region"] == new_resource.endpoint_region
+              if same_url and same_region
                   matched_endpoint = true
                   break
+              elsif same_url or same_region
+                  replace_old = true
+                  old_endpoint_id = endpoint["id"]
               end
           end
       end
@@ -518,15 +521,4 @@ def _build_headers(token = nil)
   ret.store("X-Auth-Token", token) if token
   ret.store("Content-type", "application/json")
   return ret
-end
-
-def endpoint_needs_update(endpoint, new_resource)
-  if endpoint["publicurl"] == new_resource.endpoint_publicURL and
-        endpoint["adminurl"] == new_resource.endpoint_adminURL and
-        endpoint["internalurl"] == new_resource.endpoint_internalURL and
-        endpoint["region"] == new_resource.endpoint_region
-    return false
-  else
-    return true
-  end
 end
