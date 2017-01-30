@@ -242,7 +242,11 @@ action :add_endpoint_template do
               if same_url and same_region
                   matched_endpoint = true
                   break
-              elsif same_url or same_region
+              elsif same_region
+                  replace_old = true
+                  old_endpoint_id = endpoint["id"]
+              elsif same_url && new_resource.endpoint_service != "keystone"
+                  # allow shared keystone accross multiple regions
                   replace_old = true
                   old_endpoint_id = endpoint["id"]
               end
