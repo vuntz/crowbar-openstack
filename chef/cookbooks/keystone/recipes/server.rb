@@ -413,7 +413,7 @@ register_auth_hash = { user: node[:keystone][:admin][:username],
 keystone_register "wakeup keystone" do
   protocol node[:keystone][:api][:protocol]
   insecure keystone_insecure
-  host my_admin_host
+  host node[:keystone][:api][:internal_URL_host]
   port node[:keystone][:api][:admin_port]
   auth register_auth_hash
   retries 5
@@ -440,7 +440,7 @@ end
   keystone_register "add default #{tenant} tenant" do
     protocol node[:keystone][:api][:protocol]
     insecure keystone_insecure
-    host my_admin_host
+    host node[:keystone][:api][:internal_URL_host]
     port node[:keystone][:api][:admin_port]
     auth register_auth_hash
     tenant_name tenant
@@ -453,7 +453,7 @@ if node[:keystone][:default][:create_user]
   keystone_register "add default #{node[:keystone][:default][:username]} user" do
     protocol node[:keystone][:api][:protocol]
     insecure keystone_insecure
-    host my_admin_host
+    host node[:keystone][:api][:internal_URL_host]
     port node[:keystone][:api][:admin_port]
     auth register_auth_hash
     user_name node[:keystone][:default][:username]
@@ -467,7 +467,7 @@ end
 keystone_register "add default Member role" do
   protocol node[:keystone][:api][:protocol]
   insecure keystone_insecure
-  host my_admin_host
+  host node[:keystone][:api][:internal_URL_host]
   port node[:keystone][:api][:admin_port]
   auth register_auth_hash
   role_name "Member"
@@ -486,7 +486,7 @@ user_roles.each do |args|
   keystone_register "add default #{args[2]}:#{args[0]} -> #{args[1]} role" do
     protocol node[:keystone][:api][:protocol]
     insecure keystone_insecure
-    host my_admin_host
+    host node[:keystone][:api][:internal_URL_host]
     port node[:keystone][:api][:admin_port]
     auth register_auth_hash
     user_name args[0]
@@ -508,7 +508,7 @@ ec2_creds.each do |args|
   keystone_register "add default ec2 creds for #{args[1]}:#{args[0]}" do
     protocol node[:keystone][:api][:protocol]
     insecure keystone_insecure
-    host my_admin_host
+    host node[:keystone][:api][:internal_URL_host]
     auth register_auth_hash
     port node[:keystone][:api][:admin_port]
     user_name args[0]
