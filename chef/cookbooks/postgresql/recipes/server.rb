@@ -25,10 +25,13 @@
 
 include_recipe "postgresql::client"
 
+ha_enabled = node[:database][:ha][:enabled]
+streaming_replication_enabled = ha_enabled && node[:postgresql][:streaming_replication]
+
 # For Crowbar, we need to set the address to bind - default to admin node.
-newaddr = CrowbarDatabaseHelper.get_listen_address(node)
-if node["postgresql"]["config"]["listen_addresses"] != newaddr
-  node.set["postgresql"]["config"]["listen_addresses"] = newaddr
+listen_addresses = CrowbarDatabaseHelper.get_config_listen_addresses(node).join(", ")
+if node["postgresql"]["config"]["listen_addresses"] != listen_addresses
+  node.set["postgresql"]["config"]["listen_addresses"] = listen_addresses
   node.save
 end
 
@@ -69,6 +72,42 @@ if pg_hba_internal_entries.empty?
     crowbar_internal: true,
     crowbar_automatic_address: true
   })
+end
+
+if streaming_replication_enabled
+  pg_hba_replication_entry = pg_hba.find { |x| x[:crowbar_internal] && x[:db] == "replication" }
+  if pg_hba_replication_entry.nil?
+    pg_hba.push({
+      type: "host",
+      db: "replication",
+      user: node["postgresql"]["replica_user"],
+      addr: pg_hba_addr,
+      method: "md5",
+      crowbar_internal: true,
+      crowbar_automatic_address: true
+    })
+    # avoid self-replication
+    vip_addr = CrowbarDatabaseHelper.get_listen_address(node)
+    node_addr = Barclamp::Inventory.get_network_by_type(node, "admin").address
+    pg_hba.push({
+      type: "host",
+      db: "replication",
+      user: node["postgresql"]["replica_user"],
+      addr: "#{vip_addr}/32",
+      method: "reject",
+      crowbar_internal: true,
+      crowbar_automatic_address: false
+    })
+    pg_hba.push({
+      type: "host",
+      db: "replication",
+      user: node["postgresql"]["replica_user"],
+      addr: "#{node_addr}/32",
+      method: "reject",
+      crowbar_internal: true,
+      crowbar_automatic_address: false
+    })
+  end
 end
 
 if node["postgresql"]["pg_hba"] != pg_hba
@@ -133,16 +172,21 @@ template "#{node['postgresql']['dir']}/pg_hba.conf" do
   notifies change_notify, "service[postgresql]", :immediately
 end
 
-ha_enabled = node[:database][:ha][:enabled]
-
 if ha_enabled
   log "HA support for postgresql is enabled"
-  include_recipe "postgresql::ha"
 
-  # Only run the psql commands if the service is running on this node, so that
-  # we don't depend on the node running the service to be as fast as this one
-  service_name = "postgresql"
-  only_if_command = "crm resource show #{service_name} | grep -q \" #{node.hostname} *$\""
+  if streaming_replication_enabled
+    include_recipe "postgresql::ha_replication"
+    # Only run the psql commands on the master node
+    ms_name = "ms-postgresql"
+    only_if_command = "crm resource show #{ms_name} | grep -q \" #{node.hostname} *Master$\""
+  else
+    include_recipe "postgresql::ha"
+    # Only run the psql commands if the service is running on this node, so that
+    # we don't depend on the node running the service to be as fast as this one
+    service_name = "postgresql"
+    only_if_command = "crm resource show #{service_name} | grep -q \" #{node.hostname} *$\""
+  end
 else
   log "HA support for postgresql is disabled"
 end
@@ -178,4 +222,24 @@ bash "assign-db_maker-password" do
   EOH
   only_if only_if_command if ha_enabled
   action :run
+end
+
+if streaming_replication_enabled
+  replica_user = node["postgresql"]["replica_user"]
+  replica_password = node["postgresql"]["replica_password"]
+
+  # keep in sync with resource in ha_replication.rb
+  bash "assign-replica-password" do
+    user "postgres"
+    code <<-EOH
+      echo "SELECT rolname FROM pg_roles WHERE rolname='#{replica_user}';" | psql | grep -q #{replica_user}
+      if [ $? -ne 0 ]; then
+          echo "CREATE ROLE #{replica_user} WITH LOGIN REPLICATION ENCRYPTED PASSWORD '#{replica_password}';" | psql
+      else
+          echo "ALTER ROLE #{replica_user} ENCRYPTED PASSWORD '#{replica_password}';" | psql
+      fi
+EOH
+    only_if only_if_command if ha_enabled
+    action :run
+  end
 end

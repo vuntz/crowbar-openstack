@@ -13,7 +13,8 @@
           "log_filename": "postgresql.log-%Y%m%d%H%M",
           "log_truncate_on_rotation": false,
           "log_min_duration_statement": -1
-        }
+        },
+	"streaming_replication": true
       },
       "ha": {
         "storage": {
@@ -34,7 +35,7 @@
     "database": {
       "crowbar-revision": 0,
       "crowbar-applied": false,
-      "schema-revision": 100,
+      "schema-revision": 101,
       "element_states": {
         "database-server": [ "readying", "ready", "applying" ]
       },

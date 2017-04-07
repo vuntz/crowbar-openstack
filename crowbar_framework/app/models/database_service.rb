@@ -70,9 +70,11 @@ class DatabaseService < PacemakerServiceObject
       db_engine: db_engine
     ) unless %w(mysql postgresql).include?(db_engine)
 
-    # HA validation
     servers = proposal["deployment"][@bc_name]["elements"]["database-server"]
-    unless servers.nil? || servers.first.nil? || !is_cluster?(servers.first)
+    ha_enabled = !(servers.nil? || servers.first.nil? || !is_cluster?(servers.first))
+
+    # Shared storage validation for HA validation
+    if ha_enabled && !attributes["postgresql"]["streaming_replication"]
       validation_error I18n.t(
         "barclamp.#{@bc_name}.validation.ha_postgresql"
       ) unless db_engine == "postgresql"
@@ -116,6 +118,7 @@ class DatabaseService < PacemakerServiceObject
     prepare_role_for_ha(role, ["database", "ha", "enabled"], database_ha_enabled)
     reset_sync_marks_on_clusters_founders(database_elements)
 
+    # Note that we also need the VIP for streaming replication
     if database_ha_enabled
       net_svc = NetworkService.new @logger
       unless database_elements.length == 1 && PacemakerServiceObject.is_cluster?(database_elements[0])
@@ -126,6 +129,12 @@ class DatabaseService < PacemakerServiceObject
       # CrowbarDatabaseHelper.get_ha_vhostname
       database_vhostname = "#{role.name.gsub("-config", "")}-#{PacemakerServiceObject.cluster_name(cluster)}.#{Crowbar::Settings.domain}".tr("_", "-")
       net_svc.allocate_virtual_ip "default", "admin", "host", database_vhostname
+    else
+      # Do not setup streaming replication without HA; we don't do a validation
+      # check as we still want to have the setting default to true in case
+      # people want to turn HA on, and in this case, result in streaming
+      # replication by default
+      role.default_attributes["database"]["postgresql"]["streaming_replication"] = false
     end
 
     sql_engine = role.default_attributes["database"]["sql_engine"]
@@ -146,6 +155,22 @@ class DatabaseService < PacemakerServiceObject
       role.override_attributes["postgresql"]["password"] ||= {}
       role.override_attributes["postgresql"]["password"]["postgres"] = (old_role && (old_role.override_attributes["postgresql"]["password"]["postgres"] rescue nil)) || random_password
       @logger.debug("setting postgresql specific attributes")
+    end
+
+    if role.default_attributes["database"]["postgresql"]["streaming_replication"]
+      role.default_attributes["database"]["postgresql"]["replica_user"] = "replica"
+      role.default_attributes["database"]["postgresql"]["replica_password"] = (old_role && old_role.default_attributes["database"]["postgresql"]["replica_password"]) || random_password
+      role.default_attributes["database"]["postgresql"]["config"]["hot_standby"] = "on"
+      role.default_attributes["database"]["postgresql"]["config"]["hot_standby_feedback"] = "on"
+      role.default_attributes["database"]["postgresql"]["config"]["max_replication_slots"] = database_nodes.length
+      # Only used because we don't really enable replication slots yet
+      role.default_attributes["database"]["postgresql"]["config"]["wal_keep_segments"] = 10
+      # From the doc: "this parameter should be set slightly higher than the
+      # maximum number of expected clients"
+      role.default_attributes["database"]["postgresql"]["config"]["max_wal_senders"] = (database_nodes.length * 1.5).to_i
+      # On postgresql >= 9.6, replica should be used
+      #role.default_attributes["database"]["postgresql"]["config"]["wal_level"] = "replica"
+      role.default_attributes["database"]["postgresql"]["config"]["wal_level"] = "hot_standby"
     end
 
     # Copy the attributes for database/<sql_engine> to <sql_engine> in the

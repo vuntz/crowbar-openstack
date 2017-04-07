@@ -25,10 +25,13 @@ node["postgresql"]["server"]["packages"].each do |pg_pack|
   package pg_pack
 end
 
+ha_enabled = node[:database][:ha][:enabled]
+streaming_replication_enabled = ha_enabled && node[:postgresql][:streaming_replication]
+
 # We need to include the HA recipe early, before the config files are
 # generated, but after the postgresql packages are installed since they live in
 # the directory that will be mounted for HA
-if node[:database][:ha][:enabled]
+if ha_enabled && !streaming_replication_enabled
   include_recipe "postgresql::ha_storage"
 end
 

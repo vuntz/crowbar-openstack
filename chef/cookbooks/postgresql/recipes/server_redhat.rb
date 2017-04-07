@@ -50,11 +50,12 @@ node["postgresql"]["server"]["packages"].each do |pg_pack|
 end
 
 ha_enabled = node[:database][:ha][:enabled]
+streaming_replication_enabled = ha_enabled && node[:postgresql][:streaming_replication]
 
 # We need to include the HA recipe early, before the config files are
 # generated, but after the postgresql packages are installed since they live in
 # the directory that will be mounted for HA
-if ha_enabled
+if ha_enabled && !streaming_replication_enabled
   include_recipe "postgresql::ha_storage"
 end
 
@@ -72,7 +73,8 @@ end
 #
 #   - For SUSE, however, we rely on the init script to call initdb on start.
 #     But with HA, this won't happen: the OCF RA doesn't call initdb, so we
-#     need to do it manually.
+#     need to do it manually (unless we're a slave for streaming replication,
+#     because then we will just mirror what's on the master).
 #     Also, on SUSE, there's no single initdb argument to the init script. So
 #     we need to do a quick start / stop just for that :/
 execute "Initial population of #{node.postgresql.dir}" do
@@ -81,7 +83,9 @@ execute "Initial population of #{node.postgresql.dir}" do
   else
     command "/sbin/service #{node['postgresql']['server']['service_name']} initdb #{node['postgresql']['initdb_locale']}"
   end
-  not_if { (node[:platform_family] == "suse" && !ha_enabled) || ::FileTest.exist?(File.join(node.postgresql.dir, "PG_VERSION")) }
+  not_if { ::FileTest.exist?(File.join(node.postgresql.dir, "PG_VERSION")) }
+  not_if { node[:platform_family] == "suse" && !ha_enabled }
+  not_if { node[:platform_family] == "suse" && streaming_replication_enabled && !CrowbarPacemakerHelper.is_cluster_founder?(node) }
 end
 
 service "postgresql" do

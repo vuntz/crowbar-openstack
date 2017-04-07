@@ -29,6 +29,7 @@ en:
         postgresql:
           config:
             max_connections: 'Global Connection Limit (max_connections)'
+          streaming_replication: 'Use Streaming Replication'
         ha_header: 'High Availability'
         ha:
           storage:

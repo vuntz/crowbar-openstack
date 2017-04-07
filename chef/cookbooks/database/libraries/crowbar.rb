@@ -9,6 +9,21 @@ module CrowbarDatabaseHelper
     end
   end
 
+  def self.get_config_listen_addresses(node)
+    node_addr = Chef::Recipe::Barclamp::Inventory.get_network_by_type(node, "admin").address
+    if node[:database][:ha][:enabled]
+      vhostname = get_ha_vhostname(node)
+      vip_addr = CrowbarPacemakerHelper.cluster_vip(node, "admin", vhostname)
+      if node[:postgresql][:streaming_replication]
+        [vip_addr, node_addr]
+      else
+        [vip_addr]
+      end
+    else
+      [node_addr]
+    end
+  end
+
   def self.get_listen_address(node)
     if node[:database][:ha][:enabled]
       vhostname = get_ha_vhostname(node)

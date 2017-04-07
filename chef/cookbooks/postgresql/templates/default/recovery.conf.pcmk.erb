@@ -1,0 +1,4 @@
+standby_mode = on
+primary_conninfo = 'host=<%= @master_vip %> port=<%= @port %> user=<%= @replica_user %> password=<%= @replica_password %> application_name=<%= node[:hostname] %>'
+recovery_target_timeline = 'latest'
+# primary_slot_name = <%= node[:hostname] %>
