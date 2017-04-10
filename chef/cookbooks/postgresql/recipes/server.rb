@@ -32,28 +32,47 @@ if node["postgresql"]["config"]["listen_addresses"] != newaddr
   node.save
 end
 
-# We also need to add the network + mask to give access to other nodes
-# in pg_hba.conf
-# XXX this assumes that crowbar is the only one changing pg_hba attributes
-if node["postgresql"]["pg_hba"][4]
-  netaddr, netmask = node["postgresql"]["pg_hba"][4][:addr].split
-else
-  pg_hba = node["postgresql"]["pg_hba"].dup # we're modifying this, so dup it
-  pg_hba << {
-    type: "host",
-    db: "all",
-    user: "all",
-    method: "md5"
-  }
-  netaddr, netmask = "", ""
-  node.set["postgresql"]["pg_hba"] = pg_hba
+# Magic mangling of pg_hba.conf
+pg_hba = node["postgresql"]["pg_hba"].dup # we'll possibly change this, so dup it
+
+# migrate pg_hba entry that was hacked in without a marker in old code
+pg_hba_internal_entry = pg_hba.find { |x| x[:crowbar_internal] && x[:crowbar_automatic_address] }
+if pg_hba_internal_entry.nil? && pg_hba.length == 5 &&
+    pg_hba[4][:type] == "host" &&
+    pg_hba[4][:db] == "all" &&
+    pg_hba[4][:user] == "all" &&
+    pg_hba[4][:method] == "md5" &&
+    pg_hba[4][:addr] != "127.0.0.1/32" &&
+    pg_hba[4][:addr] != "::1/128"
+  pg_hba[4][:crowbar_internal] = true
+  pg_hba[4][:crowbar_automatic_address] = true
 end
 
 newnetaddr = Chef::Recipe::Barclamp::Inventory.get_network_by_type(node, "admin").subnet
 newnetmask = Chef::Recipe::Barclamp::Inventory.get_network_by_type(node, "admin").netmask
+pg_hba_addr = [newnetaddr, newnetmask].join("    ")
 
-if netaddr != newnetaddr or netmask != newnetmask
-  node.set["postgresql"]["pg_hba"][4][:addr] = [newnetaddr, newnetmask].join("    ")
+pg_hba_internal_entries = pg_hba.select { |x| x[:crowbar_internal] && x[:crowbar_automatic_address] }
+# Make sure the network + mask is up-to-date
+pg_hba_internal_entries.each do |pg_hba_internal_entry|
+  pg_hba_internal_entry[:addr] = pg_hba_addr
+end
+
+# Add the network + mask to give access to other nodes in pg_hba.conf if missing
+if pg_hba_internal_entries.empty?
+  pg_hba.push({
+    type: "host",
+    db: "all",
+    user: "all",
+    addr: pg_hba_addr,
+    method: "md5",
+    crowbar_internal: true,
+    crowbar_automatic_address: true
+  })
+end
+
+if node["postgresql"]["pg_hba"] != pg_hba
+  node.set["postgresql"]["pg_hba"] = pg_hba
   node.save
 end
 
