@@ -151,6 +151,7 @@ when "suse"
   end
 
   default["postgresql"]["dir"] = "/var/lib/pgsql/data"
+  default["postgresql"]["server"]["service_name"] = "postgresql"
   default["postgresql"]["sysconfig"] = "/etc/sysconfig/postgresql"
 
 when "opensuse"
@@ -166,6 +167,7 @@ when "opensuse"
   default["postgresql"]["contrib"]["packages"] = ["postgresql94-contrib"]
 
   default["postgresql"]["dir"] = "/var/lib/pgsql/data"
+  default["postgresql"]["server"]["service_name"] = "postgresql"
   default["postgresql"]["sysconfig"] = "/etc/sysconfig/postgresql"
 
 else
