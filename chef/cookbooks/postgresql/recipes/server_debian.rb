@@ -36,4 +36,5 @@ service "postgresql" do
   service_name node["postgresql"]["server"]["service_name"]
   supports restart: true, status: true, reload: true
   action [:enable, :start]
+  provider Chef::Provider::CrowbarPacemakerService if node[:database][:ha][:enabled]
 end
