@@ -45,12 +45,10 @@ database_connection = if node["roles"].include?("nova-controller")
   "#{db_conn_scheme}://#{node[:nova][:db][:user]}:#{node[:nova][:db][:password]}@#{db_settings[:address]}/#{node[:nova][:db][:database]}"
 end
 
-apis = search_env_filtered(:node, "recipes:nova\\:\\:api")
-if apis.length > 0
-  api = apis[0]
-  api = node if api.name == node.name
+api = if node["roles"].include?("nova-controller")
+  node
 else
-  api = node
+  search_env_filtered(:node, "roles:nova-controller").first
 end
 
 api_ha_enabled = api[:nova][:ha][:enabled]
@@ -74,19 +72,8 @@ else
 end
 Chef::Log.info("Glance server at #{glance_server_host}")
 
-vncproxies = search_env_filtered(:node, "recipes:nova\\:\\:vncproxy")
-if vncproxies.length > 0
-  vncproxy = vncproxies[0]
-  vncproxy = node if vncproxy.name == node.name
-else
-  vncproxy = node
-end
-vncproxy_ha_enabled = vncproxy[:nova][:ha][:enabled]
-vncproxy_public_host = CrowbarHelper.get_host_for_public_url(vncproxy, vncproxy[:nova][:novnc][:ssl][:enabled], vncproxy_ha_enabled)
-Chef::Log.info("VNCProxy server at #{vncproxy_public_host}")
-
 # use memcached as a cache backend for nova-novncproxy
-if vncproxy_ha_enabled
+if api_ha_enabled
   memcached_nodes = CrowbarPacemakerHelper.cluster_nodes(node, "nova-controller")
   memcached_servers = memcached_nodes.map do |n|
     node_admin_ip = Chef::Recipe::Barclamp::Inventory.get_network_by_type(n, "admin").address
@@ -155,20 +142,21 @@ else
 end
 Chef::Log.info("Neutron server at #{neutron_server_host}")
 
-env_filter = " AND inteltxt_config_environment:inteltxt-config-#{node[:nova][:itxt_instance]}"
-oat_servers = search(:node, "roles:oat-server#{env_filter}") || []
-if oat_servers.length > 0
-  has_itxt = true
-  oat_server = oat_servers[0]
-  execute "fill_cert" do
-    command <<-EOF
-      echo | openssl s_client -connect "#{oat_server[:hostname]}:8443" -cipher DHE-RSA-AES256-SHA > /etc/nova/oat_certfile.cer || rm -fv /etc/nova/oat_certfile.cer
-    EOF
-    not_if { File.exist? "/etc/nova/oat_certfile.cer" }
+has_itxt = false
+oat_server = node
+unless node[:nova][:itxt_instance].nil? || node[:nova][:itxt_instance].empty?
+  env_filter = " AND inteltxt_config_environment:inteltxt-config-#{node[:nova][:itxt_instance]}"
+  oat_servers = search(:node, "roles:oat-server#{env_filter}") || []
+  unless oat_servers.empty?
+    has_itxt = true
+    oat_server = oat_servers[0]
+    execute "fill_cert" do
+      command <<-EOF
+        echo | openssl s_client -connect "#{oat_server[:hostname]}:8443" -cipher DHE-RSA-AES256-SHA > /etc/nova/oat_certfile.cer || rm -fv /etc/nova/oat_certfile.cer
+      EOF
+      not_if { File.exist? "/etc/nova/oat_certfile.cer" }
+    end
   end
-else
-  has_itxt = false
-  oat_server = node
 end
 
 # only put certificates in nova.conf for controllers; on compute nodes, we
@@ -199,7 +187,7 @@ else
 end
 
 # only require certs for nova controller
-if (api_ha_enabled || vncproxy_ha_enabled || api == node) && \
+if (api_ha_enabled || api == node) && \
     api[:nova][:ssl][:enabled] && node["roles"].include?("nova-controller")
   if api[:nova][:ssl][:generate_certs]
     package "openssl"
@@ -265,7 +253,7 @@ if (api_ha_enabled || vncproxy_ha_enabled || api == node) && \
   end
 end
 
-if (api_ha_enabled || vncproxy_ha_enabled || api == node) && \
+if (api_ha_enabled || api == node) && \
     api[:nova][:novnc][:ssl][:enabled] && node["roles"].include?("nova-controller")
   # No check if we're using certificate info from nova-api
   unless ::File.size?(api_novnc_ssl_certfile) || api[:nova][:novnc][:ssl][:certfile].empty?
@@ -324,7 +312,7 @@ template "/etc/nova/nova.conf" do
             glance_server_port: glance_server_port,
             glance_server_insecure: glance_server_insecure || keystone_settings["insecure"],
             metadata_bind_address: metadata_bind_address,
-            vncproxy_public_host: vncproxy_public_host,
+            vncproxy_public_host: public_api_host,
             vncproxy_ssl_enabled: api[:nova][:novnc][:ssl][:enabled],
             vncproxy_cert_file: api_novnc_ssl_certfile,
             vncproxy_key_file: api_novnc_ssl_keyfile,
