@@ -239,7 +239,18 @@ function lbaasCheck() {
 }
 
 function lbaasv2DriverCheck() {
-  if ($('#lbaasv2_driver').val() == 'f5') {
+  var values = $('#lbaasv2_drivers').val() || [];
+  //FIXME: set acceptable values for default driver
+  if (values.length > 1) {
+      $('#lbaasv2_default_driver'}.show();
+              //FIXME may need something here
+  } else {
+      $('#lbaasv2_default_driver'}.hide();
+      if (values.length == 1) {
+          $('#lbaasv2_default_driver').val(values[0]).trigger('change');
+      }
+  }
+  if (values.indexOf("f5") >= 0) {
     $('#f5_driver_container').show();
   } else {
     $('#f5_driver_container').hide();
@@ -404,7 +415,7 @@ $(document).ready(function($) {
   $('#networking_plugin').on('change', networking_plugin_check).trigger('change');
   $('#ml2_type_drivers').on('change', ml2_type_drivers_check);
   $('#ml2_mechanism_drivers').on('change', ml2_mechanism_drivers_check);
-  $('#lbaasv2_driver').on('change', lbaasv2DriverCheck).trigger('change');
+  $('#lbaasv2_drivers').on('change', lbaasv2DriverCheck).trigger('change');
 
   $('#cisco_ports table').ciscoPorts();
 });

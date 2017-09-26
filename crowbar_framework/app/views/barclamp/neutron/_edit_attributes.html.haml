@@ -134,7 +134,8 @@
       %fieldset
         %legend
           = t(".lbaas_header")
-        = select_field :lbaasv2_driver, :collection => :networking_lbaasv2_drivers
+        = select_field :lbaasv2_drivers, :collection => :networking_lbaasv2_drivers, :multiple => true, :size => NeutronService.lbaas_drivers_valid.size
+        = select_field :lbaasv2_default_driver, :collection => :networking_lbaasv2_drivers
 
         #f5_driver_container
           %fieldset

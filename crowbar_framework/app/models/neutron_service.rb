@@ -40,6 +40,11 @@ class NeutronService < OpenstackServiceObject
     ["linuxbridge", "openvswitch", "cisco_nexus", "vmware_dvs", "cisco_apic_ml2", "apic_gbp"]
   end
 
+  def self.lbaas_drivers_valid
+    ["haproxy", "f5"]
+  end
+#FIXME: require validation: selected drivers are valid; list is not empty
+
   class << self
     def role_constraints
       {
